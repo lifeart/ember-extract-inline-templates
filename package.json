@@ -1,6 +1,6 @@
 {
-  "name": "ember-extract-inline-templates",
-  "version": "1.0.0",
+  "name": "@lifeart/ember-extract-inline-templates",
+  "version": "2.0.0",
   "description": "Search and extract ember inline templates from script file(js/ts) using the `import declarations`",
   "license": "MIT",
   "keywords": [
@@ -13,8 +13,8 @@
   ],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "author": "Saif TURKI <flashios09@gmail.com>",
-  "repository": "https://github.com/flashios09/ember-extract-inline-templates",
+  "author": "Saif TURKI <flashios09@gmail.com>, Aleksandr Kanunnikov <lifeart92@gmail.com>",
+  "repository": "https://github.com/lifeart/ember-extract-inline-templates",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
@@ -45,6 +45,6 @@
     "babel-traverse": "^6.26.0"
   },
   "engines": {
-    "node": "6.* || 8.* || >= 10.*"
+    "node": ">= 10.*"
   }
 }
