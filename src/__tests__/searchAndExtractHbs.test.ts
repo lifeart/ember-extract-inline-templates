@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { searchAndExtractHbs } from "../index";
 
@@ -15,12 +15,14 @@ function clean(source: string): string {
 const parsers = [
   {
     name: "Parser #1 (babylon)",
+    key: 'babylon',
     parse(source: string) {
       return parse(source, { sourceType: "module", plugins: ["classProperties", "flow"] });
     },
   },
   {
     name: "Parser #2 (ember-meta-explorer)",
+    key: 'babel',
     parse(source: string) {
       return parseScriptFile(source);
     },
@@ -63,4 +65,28 @@ parsers.forEach((parser) => {
 
     expect(searchAndExtractHbs(component, { parse: parser.parse })).toBe(template);
   });
+
+  test(`${parser.name}: with ember test file`, () => {
+    const component = readFile("./with-ember-test-file/test.ts");
+
+    const tpl = resolve(__dirname, './with-ember-test-file/template.hbs')
+
+    writeFileSync(tpl,searchAndExtractHbs(component, { parse: parser.parse }) )
+    const template = readFile("./with-ember-test-file/template.hbs");
+
+    expect(searchAndExtractHbs(component, { parse: parser.parse })).toBe(template);
+  });
+
+  if (parser.key === 'babel') {
+    test(`${parser.name}: with glimmerx file`, () => {
+      const component = readFile("./glimmer-x/test.ts");
+  
+      const tpl = resolve(__dirname, './glimmer-x/template.hbs')
+  
+      writeFileSync(tpl,searchAndExtractHbs(component, { parse: parser.parse }) )
+      const template = readFile("./glimmer-x/template.hbs");
+  
+      expect(searchAndExtractHbs(component, { parse: parser.parse })).toBe(template);
+    });
+  }
 });

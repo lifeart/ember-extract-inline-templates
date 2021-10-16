@@ -338,10 +338,8 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
       const wantedSourceSpecifier = hbsTagSources[nodeSourceValue];
 
       if (wantedSourceSpecifier === 'default') {
-        const importDefaultSpecifiers = node.specifiers as ImportDefaultSpecifier[];
-        const [ defaultSpecifier ] = importDefaultSpecifiers.filter((specifier: ImportDefaultSpecifier) => {
-          return specifier.type === 'ImportDefaultSpecifier'
-        });
+        const importDefaultSpecifiers = node.specifiers.filter(e => e.type === 'ImportDefaultSpecifier') as ImportDefaultSpecifier[];
+        const [ defaultSpecifier ] = importDefaultSpecifiers;
 
         if (defaultSpecifier) {
           const defaultTagName: string = defaultSpecifier.local.name;
@@ -351,7 +349,7 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
         }
       }
 
-      const importSpecifiers = node.specifiers as ImportSpecifier[];
+      const importSpecifiers = node.specifiers.filter(e => e.type === 'ImportSpecifier') as ImportSpecifier[];
       const specifiers = importSpecifiers.filter((specifier: ImportSpecifier) => {
         if (Array.isArray(wantedSourceSpecifier)) {
           return wantedSourceSpecifier.includes(specifier.imported.name);
