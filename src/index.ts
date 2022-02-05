@@ -1,5 +1,5 @@
-import traverse from 'babel-traverse';
-import { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from 'babel-types';
+import traverse from '@babel/traverse';
+import type { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from '@babel/types';
 
 interface IHbsTagSources { [key: string]: string | string[]; }
 
@@ -12,7 +12,7 @@ interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
   sortByStartKey?: boolean;
 }
 
-interface ITemplateNode extends Node {
+type ITemplateNode = Node & {
   template: string;
   startLine: number;
   startColumn: number;
@@ -21,11 +21,13 @@ interface ITemplateNode extends Node {
 }
 
 export const defaultHbsTagSources: IHbsTagSources = {
+  "ember-template-imports": "hbs",
   "ember-cli-htmlbars": "hbs",
   "htmlbars-inline-precompile": "default",
   "ember-cli-htmlbars-inline-precompile": "default",
   "@glimmerx/component": "hbs",
-  "@glimmer/core": ["createTemplate", "precompileTemplate"]
+  "@glimmer/core": ["createTemplate", "precompileTemplate"],
+  "@ember/template-compilation": ["precompileTemplate"]
 };
 
 /**
@@ -240,7 +242,7 @@ function _getAST(source: string, options: IGetTemplateNodesOptions): ASTFile | n
  * original position in the source, so we can sort them using the `start` key, `false` by default.
  * @returns {ITemplateNode[]} The template nodes array.
  */
-function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: boolean = false): ITemplateNode[] {
+function _getTemplateNodes(AST: any, hbsTags: string[], sortByStartKey: boolean = false): ITemplateNode[] {
   let templateNodes: ITemplateNode[] = [];
 
   // (!) MUTATION: `traverse` function will mutate the `templateNodes` array !!!
@@ -250,15 +252,17 @@ function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: bool
 
       if (tag && tag.type === "Identifier" && hbsTags.includes(tag.name)) {
         const innerNode = node.quasi.quasis[0];
+        if (innerNode.loc !== null) {
+          templateNodes = [...templateNodes, {
+            template: innerNode.value.raw,
+            startLine: innerNode.loc.start.line,
+            startColumn: innerNode.loc.start.column,
+            endLine: innerNode.loc.end.line,
+            endColumn: innerNode.loc.end.column,
+            ...innerNode
+          }];
+        }
 
-        templateNodes = [...templateNodes, {
-          template: innerNode.value.raw,
-          startLine: innerNode.loc.start.line,
-          startColumn: innerNode.loc.start.column,
-          endLine: innerNode.loc.end.line,
-          endColumn: innerNode.loc.end.column,
-          ...innerNode
-        }];
       }
     },
 
@@ -273,26 +277,30 @@ function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: bool
         ) {
           switch (argument.type) {
             case "StringLiteral":
-              templateNodes = [...templateNodes, {
-                template: argument.value,
-                startLine: argument.loc.start.line,
-                // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
-                // not from the first template char, so we have to increment it to have the correct indentation !
-                startColumn: argument.loc.start.column + 1,
-                endLine: argument.loc.end.line,
-                endColumn: argument.loc.end.column,
-                ...argument
-              }];
+              if (argument.loc) {
+                templateNodes = [...templateNodes, {
+                  template: argument.value,
+                  startLine: argument.loc.start.line,
+                  // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
+                  // not from the first template char, so we have to increment it to have the correct indentation !
+                  startColumn: argument.loc.start.column + 1,
+                  endLine: argument.loc.end.line,
+                  endColumn: argument.loc.end.column,
+                  ...argument
+                }];
+              }
               break;
             case "TemplateLiteral":
-              templateNodes = [...templateNodes, {
-                template: argument.quasis[0].value.raw,
-                startLine: argument.quasis[0].loc.start.line,
-                startColumn: argument.quasis[0].loc.start.column,
-                endLine: argument.quasis[0].loc.end.line,
-                endColumn: argument.quasis[0].loc.end.column,
-                ...argument.quasis[0]
-              }];
+              if (argument.quasis[0].loc) {
+                templateNodes = [...templateNodes, {
+                  template: argument.quasis[0].value.raw,
+                  startLine: argument.quasis[0].loc.start.line,
+                  startColumn: argument.quasis[0].loc.start.column,
+                  endLine: argument.quasis[0].loc.end.line,
+                  endColumn: argument.quasis[0].loc.end.column,
+                  ...argument.quasis[0]
+                }];
+              }
               break;
           }
         }
@@ -339,7 +347,7 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
 
       if (wantedSourceSpecifier === 'default') {
         const importDefaultSpecifiers = node.specifiers.filter(e => e.type === 'ImportDefaultSpecifier') as ImportDefaultSpecifier[];
-        const [ defaultSpecifier ] = importDefaultSpecifiers;
+        const [defaultSpecifier] = importDefaultSpecifiers;
 
         if (defaultSpecifier) {
           const defaultTagName: string = defaultSpecifier.local.name;
@@ -351,11 +359,21 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
 
       const importSpecifiers = node.specifiers.filter(e => e.type === 'ImportSpecifier') as ImportSpecifier[];
       const specifiers = importSpecifiers.filter((specifier: ImportSpecifier) => {
-        if (Array.isArray(wantedSourceSpecifier)) {
-          return wantedSourceSpecifier.includes(specifier.imported.name);
+        const imported = specifier.imported;
+        if (imported.type === 'Identifier') {
+          if (Array.isArray(wantedSourceSpecifier)) {
+            return wantedSourceSpecifier.includes(imported.name);
+          }
+
+          return imported.name === wantedSourceSpecifier;
+        } else {
+          if (Array.isArray(wantedSourceSpecifier)) {
+            return wantedSourceSpecifier.includes(imported.value);
+          }
+
+          return imported.value === wantedSourceSpecifier;
         }
 
-        return specifier.imported.name === wantedSourceSpecifier;
       });
       if (specifiers.length) {
         specifiers.forEach((specifier) => {
@@ -386,6 +404,10 @@ function _sortTemplateNodesByStartKey(templateNodes: ITemplateNode[]): ITemplate
   }
 
   const compareFunction = (a: ITemplateNode, b: ITemplateNode) => {
+    if (a.start === null || b.start === null) {
+      return 0;
+    }
+
     if (a.start < b.start) {
       return -1;
     }
